@@ -50,4 +50,120 @@ def parse_json(data):
 
 ######################################################################
 # INSERT CODE HERE
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint to verify the service is running."""
+    return jsonify(status='healthy'), 200
+
+@app.route('/count', methods=['GET'])
+def count():
+    """Return the number of documents in the songs collection."""
+    count = db.songs.count_documents({})
+    return {"count": count}, 200
+
+@app.route('/song', methods=['GET'])
+def songs():
+    """Return all songs in the songs collection."""
+    try:
+        # Fetch all documents from the songs collection
+        songs_cursor = db.songs.find({})
+        # Convert the cursor to a list of songs
+        songs_list = list(songs_cursor)
+        # Parse the list of songs to JSON format
+        songs_json = parse_json(songs_list)
+        # Return the list of songs with a 200 OK status
+        return {"songs": songs_json}, 200
+    except Exception as e:
+        app.logger.error(f"Error fetching songs: {str(e)}")
+        return {"error": "An error occurred while fetching songs"}, 500
+
+@app.route('/song/<id>', methods=['GET'])
+def get_song_by_id(id):
+    """Return a song by its ID from the songs collection."""
+    try:
+        # Find a song by its ID
+        song = db.songs.find_one({"id": int(id)})
+        if song:
+            # Parse the song to JSON format
+            song_json = parse_json(song)
+            # Return the song with a 200 OK status
+            return song_json, 200
+        else:
+            # Return a 404 NOT FOUND if the song is not found
+            return {"message": "song with id not found"}, 404
+    except Exception as e:
+        app.logger.error(f"Error fetching song by id: {str(e)}")
+        return {"error": "An error occurred while fetching the song"}, 500
+
+@app.route('/song', methods=['POST'])
+def create_song():
+    """Create a new song in the songs collection."""
+    try:
+        # Extract song data from the request body
+        song_data = request.get_json()
+
+        # Check if the song data contains an 'id'
+        if 'id' not in song_data:
+            return {"error": "Song data must include an 'id' field"}, 400
+
+        # Check if a song with the given ID already exists
+        existing_song = db.songs.find_one({"id": song_data['id']})
+        if existing_song:
+            # Return a 302 FOUND if the song with the ID already exists
+            return {"Message": f"song with id {song_data['id']} already present"}, 302
+
+        # Insert the new song into the collection
+        db.songs.insert_one(song_data)
+
+        # Return a success message with a 201 CREATED status
+        return {"Message": "Song created successfully"}, 201
+    except Exception as e:
+        app.logger.error(f"Error creating song: {str(e)}")
+        return {"error": "An error occurred while creating the song"}, 500
+
+@app.route('/song/<int:id>', methods=['PUT'])
+def update_song(id):
+    """Update an existing song in the songs collection."""
+    try:
+        # Extract song data from the request body
+        song_data = request.get_json()
+
+        # Find the song by its ID
+        existing_song = db.songs.find_one({"id": id})
+        if not existing_song:
+            # Return a 404 NOT FOUND if the song is not found
+            return {"message": "song not found"}, 404
+
+        # Check if the song data is the same as the existing song
+        if existing_song == song_data:
+            # Return a 200 OK with a specific message if nothing is updated
+            return {"message": "song found, but nothing updated"}, 200
+
+        # Update the song with the new data
+        db.songs.update_one({"id": id}, {"$set": song_data})
+
+        # Return a success message with a 200 OK status
+        return {"message": "Song updated successfully"}, 200
+    except Exception as e:
+        app.logger.error(f"Error updating song: {str(e)}")
+        return {"error": "An error occurred while updating the song"}, 500
+
+
+@app.route('/song/<int:id>', methods=['DELETE'])
+def delete_song(id):
+    """Delete a song by its ID from the songs collection."""
+    try:
+        # Attempt to delete the song by its ID
+        result = db.songs.delete_one({"id": id})
+        
+        # Check if a song was deleted
+        if result.deleted_count == 0:
+            # Return a 404 NOT FOUND if the song is not found
+            return {"message": "song not found"}, 404
+        
+        # Return a 204 NO CONTENT if the song was successfully deleted
+        return '', 204
+    except Exception as e:
+        app.logger.error(f"Error deleting song: {str(e)}")
+        return {"error": "An error occurred while deleting the song"}, 500
 ######################################################################
